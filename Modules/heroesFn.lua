@@ -736,7 +736,9 @@ end
 -- NOTE 获取出征英雄 数据
 function module:getCampHeroesData(charIndex)
   local heroesData = sgModule:get(charIndex,"heroes") or {}
-  
+  self:logInfo('获取了heroesData 显示出征的英雄 herosfn 739');
+
+
   return _.select(heroesData,function(item) return item.status==1 end)
 end
 
@@ -747,28 +749,36 @@ function module:buildCampHeroesList(charIndex)
   local campHeroes = self:getCampHeroesData(charIndex)
   local title = "     出征英雄"
   local items=_.map(campHeroes,function(item) return item.name end)
+  self:logInfo('出征英雄列表 正在buildcampheroeslist函数 747: ' .. table.concat(items, ', '))
+
   return self:NPC_buildSelectionText(title,items);
 end
 -- NOTE 文字构建： 出征英雄操作
 function module:buildCampHeroOperator(charIndex,heroData)
   local heroIndex = heroData.index;
+  self:logInfo('herodata.index', heroIndex);
   -- 获取 job 
   local jobId = Char.GetData(heroIndex,CONST.CHAR_职业)
+  self:logInfo('char.getdata(heroindex,const.char职业', jobId);
   local jobName = getModule("gmsvData").jobs[tostring(jobId)][1]
+  self:logInfo('jobname:  ', jobName);
   -- 获取说明
   local heroTplId = heroData.tplId
+  self:logInfo('herodata.tplid:   ', heroTplId);
   local heroTplData = _.detect(heroesTpl,function(tpl) return tpl[1]==heroTplId end)
 
   local title="    【"..heroTplData[15].."】  "..heroData.name.."  职业:"..jobName
 
   local aiId1 = heroData.heroBattleTech or -1
+  self:logInfo('herodata.herobattletech:   ', aiId1);
   
   local aiData1 = _.detect(getModule("heroesAI").aiData,function(data) return data.id==aiId1 end)
   local name1=aiData1~=nil and aiData1.name or "未设定"
+  self:logInfo('英雄ai:   ', name1);
   local aiId2 = heroData.petBattleTech or -1
   local aiData2 = _.detect(getModule("heroesAI").aiData,function(data) return data.id==aiId2 end)
   local name2=aiData2~=nil and aiData2.name or "未设定"
-
+  self:logInfo('宠物AI：   ', name2);
   local items={
     "查看状态",
   "物品交换",
@@ -789,13 +799,16 @@ function module:buildCampHeroItem(charIndex,heroData)
   local items={}
   for i = 0, 27 do
     local itemIndex = Char.GetItemIndex(heroIndex, i)
+    self:logInfo('itemindex,i:   ', itemIndex,i);
     local pre=""
     if i<=7 then
       pre="▲"..nameMap['equipLocation'][tostring(i)]..":"
+      self:logInfo('穿戴部位，i:    ',nameMap['equipLocation'][tostring(i)],i );
     else
       pre="◆"
     end
     if itemIndex >= 0 then
+      self:logInfo('道具名：     ', Item.GetData(itemIndex,CONST.道具_名字));
       table.insert(items,pre..Item.GetData(itemIndex, CONST.道具_名字))
 
     else
@@ -1139,9 +1152,11 @@ end
 function module:partyFeverControl(charIndex,command)
   for slot = 0,4 do
     local p =Char.GetPartyMember(charIndex,slot)
+    self:logInfo('队员，槽位：   ', p,slot);
     if(p>=0) then
       Char.SetData(p, CONST.CHAR_卡时, 24 * 3600);
       local name = Char.GetData(p,CONST.CHAR_名字);
+      self:logInfo('队员姓名：   ', name);
       if(command ==1) then
         Char.FeverStart(p);
         NLG.UpChar(p);
@@ -1160,6 +1175,12 @@ function module:buildSetPoint(charIndex,heroIndex,page)
   
   local restPoint= Char.GetData(heroIndex,CONST.CHAR_升级点)
   local pointSetting =sgModule:get(charIndex,"pointSetting") or {}
+  --[[_(pointSetting) 创建了一个 Underscore 对象，将 pointSetting 对象作为参数传入。
+  --chain() 启用链式调用。
+  --values() 生成一个数组，该数组包含 pointSetting 对象的所有值。
+  --reduce(0, function(count, item) return count+item end) 对生成的数组进行 reduce 操作，将所有值相加，
+  初始值为 0。
+  --value() 返回 reduce 操作的结果。]]
   local pointsBeSetted = _(pointSetting):chain():values():reduce(0, 
   function(count, item) 
     return count+item
@@ -1169,7 +1190,8 @@ function module:buildSetPoint(charIndex,heroIndex,page)
     warningMsg="  剩余点数不够，请返回修改"
   end
   local windowStr="剩余点数:"..(restPoint-pointsBeSetted).."$2"..warningMsg
-  .."\n已分配点数：".._(pointAttrs):chain():map(function(attrArray) return "\n  "..attrArray[2].."："..(pointSetting[attrArray[1]] or "") end):join(""):value()
+  .."\n已分配点数：".._(pointAttrs):chain():map(function(attrArray) return "\n  "..attrArray[2]
+    .."："..(pointSetting[attrArray[1]] or "") end):join(""):value()
   .."\n$4当前分配"..pointAttrs[page][2]..":"
   .."\n(输入需要加的点数，如果不加可以直接点击下一页)"
   return windowStr
@@ -1373,15 +1395,27 @@ function module:deleteHeroData(charIndex,heroData)
   if heroData.status == 1 then
     heroData.status=2
     -- 删除英雄
+    --[[pcall是Lua语言的一个函数，用于在保护模式下调用一个函数。其作用是在调用函数时，
+    如果函数出现错误，则不会直接报错终止程序，而是返回一个错误代码，并将错误信息作为第二个返回值返回，
+    同时保留程序的正常执行流程。因此，使用pcall可以在程序执行过程中遇到错误时进行错误处理而不会导致程序崩溃。
+    --
+    --在这个代码中，pcall用于保护self:delHeroDummy(charIndex,heroData)这个函数的调用过程，
+    以避免其出现错误导致程序崩溃。如果函数调用成功，pcall会返回true和函数的返回值；
+    如果出现错误，pcall会返回false和错误信息。]]
     local res,err =pcall( function() 
       self:delHeroDummy(charIndex,heroData)
     end)
+    --[[print(res,err) 的作用是输出 pcall 函数的返回值，即 res 和 err。
+    其中，res 表示 pcall 函数是否执行成功，如果成功，res 的值为 true；否则，res 的值为 false。
+    err 表示 pcall 函数返回的错误信息，如果执行成功，err 的值为 nil；否则，err 的值为错误信息。
+    在这里，print(res,err) 的作用是为了调试程序，查看 pcall 函数执行情况和返回值。]]
     print(res,err)
   end
 
   local sql = "update des_heroes set is_deleted = 1 where id = ? "
   local res,ttt =  SQL.QueryEx(sql,heroData.id)
-  
+  --[[在这段代码中，res是一个table类型的变量，包含了SQL查询执行的结果。具体来说，res.status代表查询的状态，
+  如果为0则表示查询成功，否则表示失败；res.rowsAffected代表受影响的行数，即执行该SQL语句后，数据库中受影响的数据行数。]]
   if res.status ~= 0 then
     NLG.SystemMessage(charIndex, "数据库错误，请重试");
     print("heroData.id",heroData.id)

@@ -14,7 +14,7 @@ function commands.cleanCloneBattle(charIndex, args)
   -- args[1] 是 目标 charIndex
   Char.SetExtData(tonumber(args[1]),"lastCloneBattle",nil)
 end
--- 清楚 cloneBattle的假人
+-- 清除 cloneBattle的假人
 function commands.cleancbdummy(charIndex, args)
   local value= getModule("cloneBattle").cloneBattleDummys
   for personIndex,v in pairs(value) do

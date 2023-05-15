@@ -4,6 +4,7 @@ local _ = require "lua/Modules/underscore"
 local skillInfo = dofile("lua/Modules/autoBattleParams.lua")
 local sgModule = getModule("setterGetter")
 local heroesTpl = dofile("lua/Modules/heroesTpl.lua")
+local test1=dofile("lua/Modules/test1.lua")
 local heroesAI = getModule("heroesAI")
 local resetCharBattleState = ffi.cast('int (__cdecl*)(uint32_t a1)', 0x0048C020);
 
@@ -12,7 +13,7 @@ local heroFpReduce=0.3
 
 -- 酒馆npc的招募列表
 local heroesR=_.select(heroesTpl,function(heroes) return heroes[20]==1 end)
-
+local membersR=_.select(test1,function(members) return members[3]=="女" end)
 
 ---迁移定义
 module:addMigration(1, 'init des_heroes', function()
@@ -37,6 +38,7 @@ local heroesFn = getModule("heroesFn")
 function module:recruitTalked(npc, charIndex, seqno, select, data) 
   -- print(npc, charIndex, seqno, select, data)
   data=tonumber(data)
+  self:logInfo('heroes.recuittalked 37 data值为', data);
   if select == CONST.BUTTON_关闭 then
     return ;
   end
@@ -44,17 +46,28 @@ function module:recruitTalked(npc, charIndex, seqno, select, data)
   if seqno== 1 and data>0 then
     -- 招募英雄
     if data==1 then
+      self:logInfo('heroes.recuittalked 37 data值为', data);
+      self:logInfo('调用本模块showrecruitwindow 527');
       self:showRecruitWindow(charIndex);
     end
     -- 下令
     if data==2 then
+      self:logInfo('heroes.recuittalked 37 data值为', data);
       sgModule:set(charIndex,"heroListPage",1)
       self:showHeroListWindow(charIndex,1);
     end
+    -- 测试
+    
+    if data==3 then
+      sgModule:set(charIndex,"testListPage",1)
+      self:showTestWindow(charIndex,1);
+    end
+    
   end
   -- NOTE  2 选择了添加的英雄
   if seqno== 2 and data>0 then
     local heroesData = sgModule:get(charIndex,"heroes")
+    self:logInfo('heroes.recuittalked 37 #heroesdata值为', #heroesData);
     if #heroesData>=16 then
       NLG.SystemMessage(charIndex,"【失败】最多雇佣16名英雄")
       return
@@ -537,13 +550,21 @@ function module:showRecruitWindow(charIndex)
   local windowStr = self:NPC_buildSelectionText(title,items);
   NLG.ShowWindowTalked(charIndex, self.shortcutNpc, CONST.窗口_选择框, CONST.BUTTON_关闭, 2,windowStr);
 end
-
+--[[
+function module:showTestWindow(charIndex,page)
+  local title="@c测试窗口"
+  local items={}
+  local buttonType,windowStr=self:dynamicListData(items,title,page)
+  NLG.ShowWindowTalked(charIndex, self.shortcutNpc, CONST.窗口_选择框, buttonType, 3,windowStr);
+end
+]]
 
 -- NOTE 酒馆首页 对话框 seqno:1
 function module:recruit(npc,charIndex)
   local windowStr = heroesFn:buildRecruitSelection()
   NLG.ShowWindowTalked(charIndex, self.shortcutNpc, CONST.窗口_选择框, CONST.BUTTON_关闭, 1,windowStr);
 end
+
 --NOTE  显示英雄列表 seqno:3
 function module:showHeroListWindow(charIndex,page)
   local title = "    英雄列表"
@@ -719,7 +740,10 @@ function module:shortcut(charIndex, actionID)
   if actionID == %动作_点头% then
     self:management(self.shortcutNpc,charIndex);
   end
+  
+  --if actionID == %动
 end
+
 -- NOTE  管理 首页 seqno:6
 function module:management(npc, charIndex)
   local windowStr= heroesFn:buildManagementForHero(charIndex)
@@ -730,9 +754,13 @@ end
 function module:gatherHeroes(charIndex)
   local heroesData = sgModule:get(charIndex,"heroes")
   local Target_FloorId=Char.GetData(charIndex, CONST.CHAR_地图)
+  self:logInfo('地图id： ', Target_FloorId);
   local Target_MapId=Char.GetData(charIndex, CONST.CHAR_地图类型)
+  self:logInfo('地图类型：  ', Target_MapId);
   local Target_X=Char.GetData(charIndex, CONST.CHAR_X)
+  self:logInfo('x轴：   ', Target_X);
   local Target_Y=Char.GetData(charIndex, CONST.CHAR_Y)
+  self:logInfo('y轴：   ', Target_Y);
   local campHeroes = _.select(heroesData,function(item) return item.status==1 end)
   for _,heroData in pairs(campHeroes) do
     local heroIndex  = heroData.index
@@ -742,6 +770,7 @@ function module:gatherHeroes(charIndex)
     
     -- 判断本身队伍是否满人
     local partyNum = Char.PartyNum(charIndex)
+    self:logInfo('队伍人数是：  ', partyNum);
     if(partyNum>=5) then 
       NLG.SystemMessage(charIndex, "队伍已满5人");	
       
@@ -758,6 +787,7 @@ function module:gatherHeroes(charIndex)
       else
         -- 第一个参数 队员，第二个参数队长
         Char.Warp(heroIndex, Target_MapId, Target_FloorId, Target_X, Target_Y)
+        --self:logInfo('warp ', heroIndex,Target_MapId,Target_FloorId, Target_X, Target_Y);
         Char.JoinParty(heroIndex, charIndex) 
       end
 
@@ -1225,12 +1255,14 @@ end
 -- NOTE 治疗
 function module:heal(charIndex)
   local campHeroesData = heroesFn:getCampHeroesData(charIndex);
-  
+  self:logInfo('角色：  ', charIndex);
   _.each(campHeroesData,function(heroData) 
     heroesFn:heal(charIndex,heroData.index)
+    self:logInfo('charindex,herodata.index', charIndex,heroData.index);
     -- 治疗 宠物
     for heroPetSlot = 0,4 do
       local petIndex = Char.GetPet(heroData.index,heroPetSlot)
+      self:logInfo('herodata.idex,heropetslot,petindex', heroData.index,heroPetSlot,petIndex);
       if petIndex>=0 then
         heroesFn:heal(charIndex,petIndex)
       end
@@ -1241,6 +1273,7 @@ function module:heal(charIndex)
   -- 治疗 宠物
   for heroPetSlot = 0,4 do
     local petIndex = Char.GetPet(charIndex,heroPetSlot)
+    self:logInfo('charindex,heropetslot,petindex', charIndex,heroPetSlot,petIndex);
     if petIndex>=0 then
       heroesFn:heal(charIndex,petIndex)
     end
@@ -1259,6 +1292,7 @@ function module:setHeroBattleSkill(charIndex,data)
   local heroData=  sgModule:get(charIndex,"heroSelected");
   local heroIndex = heroData.index
   local aiId = heroData.skills[data]
+  self:logInfo('ai.id,data', aiId,data);
   if aiId==nil or  aiId<0 then
     NLG.SystemMessage(charIndex,"设置错误！请选择有效的AI")
     return  
@@ -1266,6 +1300,7 @@ function module:setHeroBattleSkill(charIndex,data)
   local aiData = _.detect(heroesAI.aiData,function(ai) return ai.id==aiId end)
 
   local name=aiData.name
+  self:logInfo('heroai.aidata.name', name);
   heroData.heroBattleTech = aiId;
   NLG.SystemMessage(charIndex,"设置成功！英雄的战斗AI是"..name)
 end
@@ -1412,15 +1447,18 @@ end
 -- NOTE 右键点击事件
 function module:onRightClickEvent(charIndex, dummyIndex)
     -- 如果不是假人，退出
+  self:logInfo('假人index,char.isdummy.dummyindex真or假', dummyIndex,Char.IsDummy(dummyIndex));
     if not Char.IsDummy(dummyIndex) then
       return
     end
     -- 如果不是英雄 ，退出
     local heroesOnline=sgModule:getGlobal("heroesOnline")
     local heroData = heroesOnline[dummyIndex]
+  self:logInfo('假人index,heroesonline[dummyindex]真or假', dummyIndex,heroesOnline[dummyIndex]);
     if not heroesOnline[dummyIndex] then
       return
     end
+  
     -- 英雄的owner
     if heroData.owner ~= charIndex then
       return

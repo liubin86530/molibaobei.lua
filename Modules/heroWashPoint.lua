@@ -17,7 +17,7 @@ end
 function module:onScriptCall(npcIndex, charIndex, text, msg)
 
   if not startswith(text,"”¢–€œ¥µ„")then
-    return
+       return
   end
 
   local windowStr = getModule('heroesFn'):buildCampHeroesList(charIndex)

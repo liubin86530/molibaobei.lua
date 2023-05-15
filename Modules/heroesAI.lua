@@ -894,7 +894,8 @@ module.target={
 -- !SECTION 
 
 -- NOTE 计算出行为数据
--- params: charIndex：自己的index, side：自己的side， battleIndex, slot：自己的slot， commands：ai指令数组
+-- params: charIndex：自己的index, side：自己的side， battleIndex, slot：自己的slot， 
+-- commands：ai指令数组
 -- return: {com1, targetSlot, techId}
 function module:calcActionData(charIndex,side,battleIndex,slot,commands)
   -- print("开始",JSON.stringify(commands),charIndex)
@@ -925,6 +926,10 @@ function module:calcActionData(charIndex,side,battleIndex,slot,commands)
         return {CONST.BATTLE_COM.BATTLE_COM_ATTACK, self.target["6"]["fn"](charIndex,side,battleIndex,slot,0), -1}
       end
       -- 获取 range
+      -- 使用了 Underscore 中的 detect 函数来寻找一个符合条件的元素。
+      -- 它传入了一个列表 skillInfo.params 和一个匿名函数作为条件判断。
+      -- 函数通过判断当前元素是否符合查找条件，如果符合，则返回该元素。
+      -- 在这个例子中，函数会根据技能 ID 来查找相应的技能信息。
       local techInfo = _.detect(skillInfo.params,function(item) 
         local ids=item[2]
         if type(ids) == 'number' and ids==techId then
@@ -965,12 +970,23 @@ function module:loadData()
   file = io.open('lua/Modules/heroesAI.txt')
   for line in file:lines() do
     if line then
-      
+      --%s 表示空白字符（空格、制表符、换行符等）。
+      --^ 表示字符串的开头。
+      --$ 表示字符串的结尾。
+      --表示前面的字符可以重复任意次（包括0次）。
+      --表示前面的字符可以重复至少一次。
+      --. 表示任意一个字符。
+      --% 用于转义其他元字符或特殊字符。
       if string.match(line, '^%s*#') then
         goto continue;
       end
+      -- 对当前行的数据进行处理，将其按照制表符分隔并存储在一个table中
+      --\t* 表示匹配行首的制表符，可能会有多个。
+      --\r[^\n]*$表示匹配一个\r后面跟着0个或多个非\n字符（即不是换行符），
+      --然后是行尾的位置$。这个模式是用来匹配Windows格式的行尾\r\n中的\r的。
+      --如果是Unix和Linux格式的行尾\n，则只需要匹配\n即可
       local data = string.split(string.gsub(line, "\t*\r[^\n]*$", ""), '\t');
-    
+      --数组存在且元素数量大于等于4
       if data and #data >=4 then
         local id = tonumber(data[1])
         local name = data[2]
@@ -991,6 +1007,13 @@ function module:loadData()
   end
   self:logInfo('loaded heroesAI', count);
   file:close();
+  --[[
+  for i, v in ipairs(aiData) do
+    self:logInfo(string.format('AI数据：[id=%s, name=%s, level=%s, type=%s, npcNo=%s, jobAncestry=%s]',
+      v.id, v.name, v.level, v.type, v.npcNo, v.jobAncestry))
+  end
+  ]]
+
   return aiData;
 end
 
@@ -1002,11 +1025,13 @@ function module:AINpcTalked(npc, charIndex, seqno, select, data)
   -- print(npc, charIndex, seqno, select, data)
   data=tonumber(data)
   if select == CONST.BUTTON_关闭 then
+    self:logInfo('选择了 关闭', select);
     return ;
   end
   -- NOTE  1 英雄列表
   if seqno== 1 and data>0 then
-    
+    self:logInfo('data value', data);
+    self:logInfo('执行本模块函数 showChooseType 1089');
     self:showChooseType(charIndex,data)
   end
   --  NOTE  2 选择Ai
@@ -1015,13 +1040,17 @@ function module:AINpcTalked(npc, charIndex, seqno, select, data)
     if data<0 then
       local page;
       if select == 32 then
+        self:logInfo('选择了 下一步 值为：', select);
         page =  sgModule:get(charIndex,"statusPage")+1
-        
+        self:logInfo('当前页面+1后，值为：', page);
       elseif select == 16 then
+        self:logInfo('选择了上一步 值为：', select);
         page =  sgModule:get(charIndex,"statusPage")-1
+        self:logInfo('当前页面-1，值为', page);
       end
       if page ==0 then
         -- 返回上一级
+        self:logInfo('回到第一页', page);
         self:showChooseType(charIndex,nil,sgModule:get(charIndex,"heroSelected4AI"))
         return
       end
@@ -1059,6 +1088,7 @@ end
 -- NOTE 选择宠物还是英雄 seqno:5
 function module:showChooseType(charIndex,data,heroData)
   if data~= nil and heroData == nil then
+    self:logInfo('data不为空 执行herosfn.getcampheroesdata charindex 737');
     local campHeroes = heroesFn:getCampHeroesData(charIndex)
     heroData = campHeroes[data]
     sgModule:set(charIndex,"heroSelected4AI",heroData)
@@ -1079,14 +1109,19 @@ function module:toShowAiList(charIndex,data)
   sgModule:set(charIndex,"chartypeSelected4AI",data-1)
   local heroData = sgModule:get(charIndex,"heroSelected4AI")
   local heroLevel =Char.GetData(heroData.index,CONST.CHAR_等级)
-
+  --这个回调函数会返回一个布尔值，表示这个 AI 是否符合筛选条件。
+  --具体来说，返回值为 true 当且仅当以下三个条件都满足：
+  --
+  --ai.type 等于 data-1，也就是等于当前选择的 AI 类型。
+  --isLevelQualified 为 true，也就是等级限制满足。
+  --isJobQualified 为 true，也就是职业限制满足。
   local itemsData=_.select(self.aiData,function(ai) 
     local levelRequired= ai.level
     
     local isLevelQualified=true;
     local isJobQualified =true;
     local heroJobAncestry = Char.GetData(heroData.index,CONST.CHAR_职类ID)
-    
+    --对 heroLevel 进行整除10的运算，再向下取整得到商（去除小数部分），然后再加1。
     if (math.floor(heroLevel/10)+1) < levelRequired then
       isLevelQualified=false
     end
@@ -1105,6 +1140,13 @@ function module:toShowAiList(charIndex,data)
 
 end
 -- NOTE 显示AI列表 seqno:2
+--首先，获取之前通过 toShowAiList 函数保存在 sgModule 模块中的 aiDataList4AI 数据，
+--这个数据包含了可以使用的AI列表。然后，将这个列表转换成一个只包含AI名称的新列表 items。
+--接着，使用 dynamicListData 函数生成一个游戏界面上的列表窗口，
+--窗口中包含了 items 列表中的所有AI名称。列表窗口的标题是 "请选择一个AI，查看说明"。--
+--dynamicListData 函数返回两个值：buttonType 和 windowStr，它们用于显示游戏界面上的窗口。
+--最后，使用 NLG.ShowWindowTalked 函数显示列表窗口。
+--其中，NLG.ShowWindowTalked 函数是游戏开发框架中的一个函数，用于在游戏界面上显示各种窗口和对话框。
 function module:showAIList(charIndex,page)
   local itemsData=sgModule:get(charIndex,"aiDataList4AI")
   local items=_.map(itemsData,function(ai) return ai.name end)
@@ -1117,14 +1159,24 @@ end
 function module:dynamicListData(list,title,page)
  
   page = page or 1 ;
-  
+  --start_index 表示动态列表中当前页码对应的起始索引位置，
+  --其中 (page-1)*8 计算的是前面所有页码所占用的索引位置，再加上 1 就是当前页码的起始索引位置。
+  --
+  --假设一页显示8个列表项，那么第1页的起始索引位置就是 1，
+  --第2页的起始索引位置就是 9，第3页的起始索引位置就是 17，以此类推。
   local start_index = (page-1)*8+1
+  --这行代码是用来计算列表可以分成多少页的，其中 #list 是列表的长度，
+  --除以 8 是因为我们规定每页显示8个选项。
+  --math.modf() 函数会返回两个值，第一个值是整除后的结果，第二个值是余数。
+  --因为如果 #list 不能整除8，那么最后一页可能只显示少于8个选项，
+  --所以需要根据余数判断是否需要增加一页。最终，totalPage 变量就是列表可以分成的总页数。
   local totalPage,rest = math.modf(#list/8)
   
   if rest>0 then
     totalPage=totalPage+1
   end
-  
+  --这行代码的作用是从 list 列表中提取出从 start_index 开始的 8 个元素，返回一个新的列表。
+  --也就是说，items 列表中包含 list 列表中从 start_index 开始的 8 个元素。
   local items = _.slice(list, start_index, 8)
   local windowStr = self:NPC_buildSelectionText(title,items);
   local buttonType;
@@ -1143,21 +1195,26 @@ end
 function module:showAIComment(charIndex,data)
   local heroData = sgModule:get(charIndex,"heroSelected4AI")
   local page = sgModule:get(charIndex,"statusPage")
+  NLG.SystemMessage(charIndex, tostring(page).."页")
   local index = (page-1)*8+data
 
+  NLG.SystemMessage(charIndex, "计算得到的index为："..tostring(index));
   local aiData=sgModule:get(charIndex,"aiDataList4AI")
   local aiDataSelected = aiData[index]
 
   local aiId=aiDataSelected.id
+  NLG.SystemMessage(charIndex, tostring(aiId).."当前AI ID")
   sgModule:set(charIndex,"aiSelected",aiId);
   local commands =aiDataSelected.commands
 
   -- 判断 是否满足等级和 职业要求
   local levelRequired= aiDataSelected.level
-
+  NLG.SystemMessage(charIndex, tostring(levelRequired).."当前AI要求等级")
   local heroLevel =Char.GetData(heroData.index,CONST.CHAR_等级)
-
+  NLG.SystemMessage(charIndex, tostring(heroLevel).."英雄当前等级")
+  NLG.SystemMessage(charIndex, tostring(heroData.index).."英雄data.index")
   local heroJobAncestry = Char.GetData(heroData.index,CONST.CHAR_职类ID)
+  NLG.SystemMessage(charIndex, tostring(heroJobAncestry).."英雄职业ancestryID")
   local isLevelQualified=true;
   local isJobQualified =true;
   local warning=""
@@ -1174,20 +1231,30 @@ function module:showAIComment(charIndex,data)
 
   local windowStr =title.. _(commands):chain():map(function(command)
       local conditionId = command[1]
+    NLG.SystemMessage(charIndex, tostring(conditionId).."conditionID")
       local targetId = command[2]
-     
+    NLG.SystemMessage(charIndex, tostring(targetId).."targetID")
       local techId = tonumber(command[3])
+    NLG.SystemMessage(charIndex, tostring(techId).."技能ID")
       local techName=""
       if techId == -100 or techId == -200 then
         techName = techId ==-100 and "攻击" or "防御"
       else
 
         local techIndex = Tech.GetTechIndex(techId)
+        NLG.SystemMessage(charIndex, tostring(techIndex).."技能Index")
         techName=Tech.GetData(techIndex, CONST.TECH_NAME)
       end
-      
+    --[[
+    for k,v in pairs(self.conditions) do
+      NLG.SystemMessage(charIndex, "条件ID："..k.."，条件描述："..v.comment)
+    end
 
-      str =  "如果$1"..self.conditions[tostring(conditionId)]["comment"]
+    for k,v in pairs(self.target) do
+      NLG.SystemMessage(charIndex, "对象ID："..k.."，对象描述："..v.comment)
+    end
+    ]]
+    str =  "如果$1"..self.conditions[tostring(conditionId)]["comment"]
       .."$0则对$1"..self.target[tostring(targetId)]["comment"].."$0释放 $1"..techName..""
       return str;
     end):join("\\n\\n"):value()

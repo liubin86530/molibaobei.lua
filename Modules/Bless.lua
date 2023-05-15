@@ -9,7 +9,9 @@ end
 function Module:battleOverEventCallback(battleIndex)
 	for i=0,9 do--自动丢垃圾+理包+卖魔石(每人开启)
 		local player = Battle.GetPlayer(battleIndex,i)
+    self:logInfo('扫描到当前玩家',player);
 		if player>-1 then
+      
 			if Char.GetData(player,%对象_交易开关%) == 1 then
 				for laji = 14801,15055 do--3.0图鉴
 					Char.DelItem(player,laji,99);
